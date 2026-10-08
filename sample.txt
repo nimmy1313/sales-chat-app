@@ -1,0 +1,166 @@
+                         U COMMERCE AI CHATBOT
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │  User signs up  │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │   User Login    │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │   JWT Token     │
+                         │ identifies user │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                    ┌──────────────────────────┐
+                    │      Chat Page Opens     │
+                    │    WebSocket Connected   │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                    ┌──────────────────────────┐
+                    │ Load Previous Chat       │
+                    │ History for this User    │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                       ┌──────────────────┐
+                       │ User asks a      │
+                       │ question         │
+                       └────────┬─────────┘
+                                │
+                                ▼
+                 ┌──────────────────────────────┐
+                 │       FastAPI Backend        │
+                 └──────────────┬───────────────┘
+                                │
+                    ┌───────────┼───────────┐
+                    │           │           │
+                    ▼           ▼           ▼
+              ┌─────────┐ ┌──────────┐ ┌──────────┐
+              │  User   │ │ Products │ │   Chat   │
+              │  Info   │ │  from DB │ │ History  │
+              └─────────┘ └──────────┘ └──────────┘
+                    │           │           │
+                    └───────────┼───────────┘
+                                ▼
+                       ┌─────────────────┐
+                       │ Build Prompt    │
+                       │ for Gemini      │
+                       └────────┬────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │     GEMINI      │
+                       │  Generate Reply │
+                       └────────┬────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Save AI Reply   │
+                       │ to Chat History │
+                       └────────┬────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Send Response   │
+                       │ through         │
+                       │ WebSocket       │
+                       └────────┬────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ User sees reply │
+                       └─────────────────┘
+
+1. User logs in
+- User enters email/password.
+- FastAPI verifies them.
+- If valid, it creates a JWT token containing the user_id.
+
+2. User opens the chat
+- The browser sends that JWT token when opening the WebSocket connection:
+Browser → WebSocket → FastAPI
+                      ↓
+                   JWT token
+                      ↓
+                   user_id
+
+- FastAPI verifies the token and extracts the user_id.
+- This tells the backend which user is connected.
+
+3. Previous chat history
+- Using that user_id, the backend queries PostgreSQL:
+Chathistory
+    ↓
+WHERE user_id = current_user_id
+
+- So the user gets their own previous conversation, not somebody else's.
+
+User sends a new message
+For example:
+"Show me available electronics"
+
+The backend then gets:
+- the user's name
+- available products from the Products table
+- recent chat history for that user
+- the new question/message
+These are combined into a prompt/context.
+
+4. Gemini generates the response
+User name
+    +
+Product information
+    +
+Previous chat history
+    +
+Current user question
+    ↓
+  Gemini
+    ↓
+AI-generated response
+
+Important: Gemini itself is not directly accessing PostgreSQL. Your Python/FastAPI application retrieves the information from PostgreSQL and gives the relevant information to Gemini in the prompt.
+
+5. Response goes back to the user
+- Gemini returns the response to your Python application.
+- Your application saves the assistant's response in Chathistory.
+- Then it sends the response back to the browser through the WebSocket.
+
+                LOGIN
+                   ↓
+             JWT generated
+                   ↓
+            Open WebSocket
+                   ↓
+          Verify JWT → user_id
+                   ↓
+       Load user's chat history
+                   ↓
+       Send history to browser
+                   ↓
+         User types a message
+                   ↓
+          WebSocket → FastAPI
+                   ↓
+       Save user's message
+                   ↓
+       Get Products + ChatHistory
+                   ↓
+          Build Gemini prompt
+                   ↓
+                 GEMINI
+                   ↓
+            AI response
+                   ↓
+       Save response in database
+                   ↓
+        WebSocket → Browser
+                   ↓
+             User sees reply
