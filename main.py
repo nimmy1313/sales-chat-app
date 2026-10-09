@@ -40,7 +40,7 @@ async def chat():
     return FileResponse("frontend/chat.html")
 
 @app.get("/login")
-async def chat():
+async def login():
     return FileResponse("frontend/login.html")
 
 @app.websocket("/ws/chat")
